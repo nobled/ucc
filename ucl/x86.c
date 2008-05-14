@@ -881,7 +881,7 @@ void EmitFunction(FunctionSymbol fsym)
 	bb = fsym->entryBB;
 	while (bb != NULL)
 	{
-		if (bb != fsym->entryBB && bb->ref != 0)
+		if (bb->ref != 0)
 		{
 			DefineLabel(bb->sym);
 		}

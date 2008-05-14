@@ -737,6 +737,7 @@ next_specifier:
 			*tsTail = (AstNode)tname;
 			tsTail = &tname->next;
 			NEXT_TOKEN;
+			seeTy = 1;
 			break;
 		} 
 		return specs;

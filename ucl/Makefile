@@ -3,12 +3,13 @@ C_SRC       = alloc.c ast.c decl.c declchk.c dumpast.c emit.c \
               input.c lex.c output.c reg.c simp.c stmt.c \
               stmtchk.c str.c symbol.c tranexpr.c transtmt.c type.c \
               ucl.c uildasm.c vector.c x86.c x86linux.c
+OBJS        = $(C_SRC:.c=.o)
 CC          = gcc
 CFLAGS      = -g -D_UCC
 UCC         = ../driver/ucc
 
-all: $(C_SRC) assert.o
-	$(CC) -o ucl $(CFLAGS) $(C_SRC)
+all: $(OBJS) assert.o
+	$(CC) -o ucl $(CFLAGS) $(OBJS)
 
 clean:
 	rm -f *.o ucl

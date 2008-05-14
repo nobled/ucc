@@ -35,6 +35,7 @@ struct bblock
 	int nsucc;
 	int npred;
 	int ref;
+	int no;
 };
 
 typedef struct ilarg

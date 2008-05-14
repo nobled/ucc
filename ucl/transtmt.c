@@ -178,6 +178,7 @@ static void TranslateGotoStatement(AstStatement stmt)
 		gotoStmt->label->respBB = CreateBBlock();
 	}
 	GenerateJump(gotoStmt->label->respBB);
+	StartBBlock(CreateBBlock());
 }
 
 static void TranslateBreakStatement(AstStatement stmt)
@@ -192,6 +193,7 @@ static void TranslateBreakStatement(AstStatement stmt)
 	{
 		GenerateJump(AsLoop(brkStmt->target)->nextBB);
 	}
+	StartBBlock(CreateBBlock());
 }
 
 static void TranslateContinueStatement(AstStatement stmt)
@@ -199,6 +201,7 @@ static void TranslateContinueStatement(AstStatement stmt)
 	AstContinueStatement contStmt = AsCont(stmt);
 
 	GenerateJump(contStmt->target->contBB);
+	StartBBlock(CreateBBlock());
 }
 
 static void TranslateReturnStatement(AstStatement stmt)
@@ -287,6 +290,8 @@ static void TranslateSwitchBuckets(SwitchBucket *bucketArray, int left, int righ
 	{
 		GenerateJump(dstBBs[0]);
 	}
+
+	StartBBlock(CreateBBlock());
 
 	TranslateSwitchBuckets(bucketArray, left, mid - 1, choice, lhalfBB, defBB);
 	TranslateSwitchBuckets(bucketArray, mid + 1, right, choice, rhalfBB, defBB);
@@ -457,16 +462,16 @@ static void TranslateFunction(AstFunction func)
 	StartBBlock(FSYM->exitBB);
 
 	Optimize(FSYM);
+
 	bb = FSYM->entryBB;
 	while (bb != NULL)
 	{
-		if (bb != FSYM->entryBB && bb->ref != 0)
+		if (bb->ref != 0)
 		{
 			bb->sym = CreateLabel();
 		}
 		bb = bb->next;
 	}
-	
 }
 
 void Translate(AstTranslationUnit transUnit)

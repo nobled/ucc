@@ -70,7 +70,6 @@ BBlock CreateBBlock(void)
 
 	bb->insth.opcode = NOP;
 	bb->insth.prev = bb->insth.next = &bb->insth;
-
 	return bb;
 }
 

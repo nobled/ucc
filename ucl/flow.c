@@ -33,11 +33,13 @@ static void RemoveEdge(CFGEdge *pprev, BBlock bb)
 		if (e->bb == bb)
 		{
 			*pprev = e->next;
-			break;
+			return;
 		}
 		pprev = &e->next;
 		e = e->next;
 	}
+	assert(0);
+	
 }
 
 static void RemovePredecessor(BBlock bb, BBlock p)
@@ -117,7 +119,11 @@ static void ModifySuccessor(BBlock bb, BBlock s, BBlock ns)
 	if (lasti->opcode >= JZ && lasti->opcode <= JMP)
 	{
 		if ((BBlock)lasti->opds[0] == s)
+		{
+			s->ref--;
+			ns->ref++;
 			lasti->opds[0] = (Symbol)ns;
+		}
 	}
 	else if (lasti->opcode == IJMP)
 	{
@@ -128,6 +134,8 @@ static void ModifySuccessor(BBlock bb, BBlock s, BBlock ns)
 		{
 			if (dstBBs[i] == s)
 			{
+				s->ref--;
+				ns->ref++;
 				dstBBs[i] = ns;
 			}
 			i++;
@@ -145,7 +153,6 @@ BBlock TryMergeBBlock(BBlock bb1, BBlock bb2)
 {
 	if (bb2 == NULL)
 		return bb2;
-
 	if (bb1->nsucc == 1 && bb2->npred == 1 && bb1->succs->bb == bb2)
 	{
 		CFGEdge succ;
@@ -177,11 +184,10 @@ BBlock TryMergeBBlock(BBlock bb1, BBlock bb2)
 			ModifySuccessor(pred->bb, bb1, bb2);
 			pred = pred->next;
 		}
-
 		bb2->prev = bb1->prev;
 		if (bb1->prev)
 			bb1->prev->next = bb2;
-
+		
 		return bb1->prev;
 	}
 	else if (bb2->ninst == 0 && bb2->npred == 0)
@@ -227,7 +233,6 @@ BBlock TryMergeBBlock(BBlock bb1, BBlock bb2)
 		}
 	}
 	
-
 	return bb2;
 }
 
@@ -265,6 +270,8 @@ void ExamineJump(BBlock bb)
 		succ->bb = bb2;
 		RemovePredecessor(bb1, bb);
 		AddPredecessor(bb2, bb);
+		bb1->ref--;
+		bb2->ref++;
 		lasti->opds[0] = (Symbol)bb2;
 	}
 }

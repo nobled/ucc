@@ -117,7 +117,7 @@ static Symbol TranslateArrayIndex(AstExpression expr)
 	int coff = 0;
 
 	p = expr;
-	while (p->op == OP_INDEX)
+	do
 	{
 		if (p->kids[1]->op == OP_CONST)
 		{
@@ -132,7 +132,8 @@ static Symbol TranslateArrayIndex(AstExpression expr)
 			voff = Simplify(voff->ty, ADD, voff, TranslateExpression(p->kids[1]));
 		}
 		p = p->kids[0];
-	}
+	} while (p->op == OP_INDEX && p->kids[0]->isarray);
+
 	addr = TranslateExpression(p);
 	dst = Offset(expr->ty, addr, voff, coff);
 

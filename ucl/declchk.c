@@ -1264,6 +1264,8 @@ void CheckFunction(AstFunction func)
 	int sclass;
 	Label label;
 	AstNode p;
+	Vector params;
+	Parameter param;
 	
 	func->fdec->partOfDef = 1;
 
@@ -1275,22 +1277,18 @@ void CheckFunction(AstFunction func)
 
 	CheckDeclarator(func->dec);
 
-	if (func->decls)
+	p = func->decls;
+	while (p)
 	{
-		Vector params = func->fdec->sig->params;
-		Parameter param;
-
-		p = func->decls;
-		while (p)
-		{
-			CheckIDDeclaration(func->fdec, (AstDeclaration)p);
-			p = p->next;
-		}
-		FOR_EACH_ITEM(Parameter, param, params)
-			if (param->ty == NULL)
-				param->ty = T(INT);
-		ENDFOR
+		CheckIDDeclaration(func->fdec, (AstDeclaration)p);
+		p = p->next;
 	}
+
+	params = func->fdec->sig->params;
+	FOR_EACH_ITEM(Parameter, param, params)
+		if (param->ty == NULL)
+			param->ty = T(INT);
+	ENDFOR
 		
 	ty = DeriveType(func->dec->tyDrvList, func->specs->ty);
 	if (ty == NULL)
@@ -1340,7 +1338,6 @@ void CheckFunction(AstFunction func)
 	EnterScope();
 	{
 		Vector v= ((FunctionType)ty)->sig->params;
-		Parameter param;
 		
 		FOR_EACH_ITEM(Parameter, param, v)
 			AddVariable(param->id, param->ty, param->reg ? TK_REGISTER : TK_AUTO);

@@ -138,7 +138,7 @@ void DAssemFunction(AstFunction func)
 
 	while (bb != NULL)
 	{
-		if (bb != fsym->entryBB && bb->ref != 0)
+		if (bb->ref != 0)
 		{
 			fprintf(IRFile, "%s:\n", bb->sym->name);
 		}
