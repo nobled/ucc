@@ -6,8 +6,8 @@
 
 #define UCHAR_MAX	0xff
 #define USHRT_MAX	0xffff
-#define UINT_MAX	(~0U)
-#define ULONG_MAX	(~0UL)
+#define UINT_MAX	0xffffffff
+#define ULONG_MAX	0xffffffff
 
 #define SCHAR_MAX	0x7f
 #define SHRT_MAX	0x7fff
