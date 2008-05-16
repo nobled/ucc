@@ -184,31 +184,31 @@ static AstInitializer CheckInitializerInternal(InitData *tail, AstInitializer in
 
 		return p;
 	}
-
 	else if (ty->categ == ARRAY)
 	{
 		int start = *offset;
 		p = init->lbrace ? (AstInitializer)init->initials : init;
 
-		if (! init->lbrace && init->expr->op == OP_STR && ty->categ / 2 == init->expr->ty->categ / 2)
+		if (((init->lbrace && ! p->lbrace && p->next == NULL) || ! init->lbrace) &&
+		    p->expr->op == OP_STR && ty->categ / 2 == p->expr->ty->categ / 2)
 		{
-			size = init->expr->ty->size;
+			size = p->expr->ty->size;
 			if (ty->size == 0 || ty->size == size)
 			{
 				ty->size = size;
 			}
 			else if (ty->size == size - 1)
 			{
-				init->expr->ty->size = size - 1;
+				p->expr->ty->size = size - 1;
 			}
-			else
+			else if (ty->size < size)
 			{
 				Error(&init->coord, "string is too long");
 				*error = 1;
 			}
 			ALLOC(initd);
 			initd->offset = *offset;
-			initd->expr = init->expr;
+			initd->expr = p->expr;
 			initd->next = NULL;
 			(*tail)->next = initd;
 			*tail = initd;
@@ -221,6 +221,8 @@ static AstInitializer CheckInitializerInternal(InitData *tail, AstInitializer in
 			p = CheckInitializerInternal(tail, p, ty->bty, offset, error);
 			size += ty->bty->size;
 			*offset = start + size;
+			if (ty->size == size)
+				break;
 		}
 		
 		if (ty->size == 0)
@@ -1203,7 +1205,7 @@ next:
 
 static void CheckIDDeclaration(AstFunctionDeclarator funcDec, AstDeclaration decl)
 {
-	Type ty;
+	Type ty, bty;
 	int sclass;
 	AstInitDeclarator initDec;
 	Parameter param;
@@ -1211,7 +1213,7 @@ static void CheckIDDeclaration(AstFunctionDeclarator funcDec, AstDeclaration dec
 
 	CheckDeclarationSpecifiers(decl->specs);
 	sclass = decl->specs->sclass;
-	ty = decl->specs->ty;
+	bty = decl->specs->ty;
 	if (! (sclass == 0 || sclass == TK_REGISTER))
 	{
 		Error(&decl->coord, "Invalid storage class");
@@ -1237,7 +1239,7 @@ static void CheckIDDeclaration(AstFunctionDeclarator funcDec, AstDeclaration dec
 		goto next_dec;
 
 ok:
-		ty = DeriveType(initDec->dec->tyDrvList, ty);
+		ty = DeriveType(initDec->dec->tyDrvList, bty);
 		if (ty == NULL)
 		{
 			Error(&initDec->coord, "Illegal type");

@@ -470,7 +470,7 @@ static int ScanNumericLiteral(void)
 		}
 	}
 
-	if (base == 16 || *CURSOR != '.')
+	if (base == 16 || (*CURSOR != '.' && *CURSOR != 'e' && *CURSOR != 'E'))
 	{
 		return ScanIntLiteral(start, (int)(CURSOR - start), base);
 	}
