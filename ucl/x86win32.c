@@ -3,6 +3,10 @@
 #include "reg.h"
 #include "output.h"
 
+/**
+ * WIN32 implementation of the interface defined in target.h
+ */
+
 static int ORG;
 static int FloatNum;
 static char *ASMTemplate[] =
@@ -12,6 +16,12 @@ static char *ASMTemplate[] =
 #undef TEMPLATE
 };
 
+/**
+ * When defining a symbol, it shall be in its alignment boundary. 
+ * In order to avoid too many align directives, we maintain a global
+ * address counter ORG, only when ORG is not in symbol's alignment
+ * boundary, write align directive
+ */
 static void Align(Symbol p)
 {
 	int align = p->ty->align;
@@ -24,6 +34,9 @@ static void Align(Symbol p)
 	ORG += p->ty->size;
 }
 
+/**
+ * Get a symbol's name in assembly
+ */
 static char* GetAccessName(Symbol p)
 {
 	if (p->aname != NULL)

@@ -2,21 +2,32 @@
 #include "ast.h"
 #include "target.h"
 
+// flag to control if dump abstract syntax tree
 static int DumpAST;
+// flag to control if dump intermediate code
 static int DumpIR;
-
+// file to hold abstract synatx tree
+FILE *ASTFile;
+// file to hold intermediate code
+FILE *IRFile;
+// file to hold assembly code
+FILE *ASMFile;
+// assembly file's extension name
+char *ExtName = ".s";
+// please see alloc.h, defaultly, ALLOC() allocates memory from CurrentHeap
+Heap CurrentHeap;
+// hold memory whose lifetime is the whole program
+HEAP(ProgramHeap);
+// hold memory whose lifetime is the whole file
+HEAP(FileHeap);
+// all the strings and identifiers are hold in StringHeap, the lifetime is the whole program 
+HEAP(StringHeap);
+// number of warnings in a file
+int WarningCount;
+// number of errors in a file 
+int ErrorCount;
 Vector ExtraWhiteSpace;
 Vector ExtraKeywords;
-FILE *ASTFile;
-FILE *IRFile;
-FILE *ASMFile;
-char *ExtName = ".s";
-Heap CurrentHeap;
-HEAP(ProgramHeap);
-HEAP(FileHeap);
-HEAP(StringHeap);
-int WarningCount;
-int ErrorCount;
 
 static void Initialize(void)
 {
@@ -37,8 +48,10 @@ static void Compile(char *file)
 
 	Initialize();
 
+	// parse preprocessed C file, generate an abstract syntax tree
 	transUnit = ParseTranslationUnit(file);
 
+	// perform semantic check on abstract synatx tree
 	CheckTranslationUnit(transUnit);
 
 	if (ErrorCount != 0)
@@ -49,6 +62,7 @@ static void Compile(char *file)
 		DumpTranslationUnit(transUnit);
 	}
 
+	// translate the abstract synatx tree into intermediate code
 	Translate(transUnit);
 
 	if (DumpIR)
@@ -56,6 +70,7 @@ static void Compile(char *file)
 		DAssemTranslationUnit(transUnit);
 	}
 
+	// emit assembly code from intermediate code
 	EmitTranslationUnit(transUnit);
 
 exit:
@@ -126,6 +141,11 @@ static int ParseCommandLine(int argc, char *argv[])
 	return i;
 }
 
+
+/**
+ * The compiler's main entry point. 
+ * The compiler handles C files one by one.
+ */
 int main(int argc, char *argv[])
 {
 	int i;

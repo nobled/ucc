@@ -22,6 +22,14 @@
 unsigned char END_OF_FILE = 255;
 struct input Input;
 
+/**
+ * Reads the whole preprocessed C source file into memory.
+ * When compiling by Windows VC, uses the memory mapping file
+ * mechanism in Windows OS; When compiling by ucc, allocates memory.
+ * Whatever mechanism used, this function appends an extra byte, 
+ * its value is END_OF_FILE. When lexical analyzer reads this byte,
+ * the file is taken for finished.
+ */
 void ReadSourceFile(char *filename)
 {
 #if defined(_UCC)

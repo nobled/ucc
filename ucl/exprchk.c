@@ -21,17 +21,26 @@
     expr->ty = T(INT);                                                  \
     return expr;                   
 
+/**
+ * Check if the expression expr is a modifiable-lvalue
+ */
 static int CanModify(AstExpression expr)
 {		
 	return (expr->lvalue && ! (expr->ty->qual & CONST) && 
 	        (IsRecordType(expr->ty) ? ! ((RecordType)expr->ty)->hasConstFld : 1));
 }
 
+/**
+ * Check if the expression expr is null constant
+ */
 static int IsNullConstant(AstExpression expr)
 {
 	return expr->op == OP_CONST && expr->val.i[0] == 0;
 }
 
+/**
+ * Construct an expression to multiply offset by scale.
+ */
 static AstExpression ScalePointerOffset(AstExpression offset, int scale)
 {
 	AstExpression expr;
@@ -49,6 +58,9 @@ static AstExpression ScalePointerOffset(AstExpression offset, int scale)
 	return FoldConstant(expr);
 }
 
+/**
+ * Construct an expression to divide diff by size
+ */
 static AstExpression PointerDifference(AstExpression diff, int size)
 {
 	AstExpression expr;
@@ -66,6 +78,9 @@ static AstExpression PointerDifference(AstExpression diff, int size)
 	return expr;
 }
 
+/**
+ * Check primary expression
+ */
 static AstExpression CheckPrimaryExpression(AstExpression expr)
 {
 	Symbol p;
@@ -118,6 +133,13 @@ static AstExpression PromoteArgument(AstExpression arg)
 	return Cast(ty, arg);
 }
 
+/**
+ * Check argument.
+ * @param fty function type
+ * @param arg argument expression
+ * @param argNo the argument's number in function call
+ * @param argFull if the function's argument is full
+ */
 static AstExpression CheckArgument(FunctionType fty, AstExpression arg, int argNo, int *argFull)
 {
 	Parameter param;

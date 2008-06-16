@@ -8,6 +8,9 @@
 
 int SwitchTableNum;
 
+/**
+ * Emit all the strings to assembly file
+ */
 static void EmitStrings(void)
 {
 	Symbol p = Strings;
@@ -169,6 +172,9 @@ static void ImportFunctions(void)
 	}
 }
 
+/**
+ * Emit all the functions
+ */
 static void EmitFunctions(AstTranslationUnit transUnit)
 {
 	AstNode p;
@@ -189,6 +195,9 @@ static void EmitFunctions(AstTranslationUnit transUnit)
 	}
 }
 
+/**
+ * Emit the assembly code for the translation unit
+ */
 void EmitTranslationUnit(AstTranslationUnit transUnit)
 {
 	ASMFile = CreateOutput(Input.filename, ExtName);

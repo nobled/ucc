@@ -13,3 +13,9 @@ $2008-05-16
 (1)ucl/lex.c: Fix the bug failed to recognize float constant such as 12e20
 
 (2)ucl/declchk.c: Fix the bug failed to initialize known-size array in struct
+
+$2008-06-16
+(1) Add comments
+
+(2) Fix struct/union memory layout
+

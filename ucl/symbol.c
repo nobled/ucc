@@ -1,21 +1,40 @@
 #include "ucl.h"
 #include "output.h"
 
+// number of strings
 static int StringNum;
+// tags in global scope, tag means struct/union, enumeration name
 static struct table GlobalTags;
+// normal identifiers in global scope
 static struct table GlobalIDs;
+// all the constants
 static struct table Constants;
+// tags in current scope
 static Table Tags;
+// normal identifiers in current scope
 static Table Identifiers;
+// used to construct symobl list
 static Symbol *FunctionTail, *GlobalTail, *StringTail, *FloatTail;
 
+// all the function symbols
 Symbol Functions;
+// all the gloabl variables and static variables
 Symbol Globals;
+// all the strings
 Symbol Strings;
+// all the floating constants
 Symbol FloatConstants;
+/// Scope level, file scope will be 0, when entering each nesting level,
+/// Level increment; exiting each nesting level, Level decrement
 int Level;
-int TempNum, LabelNum;
+// number of temporaries
+int TempNum;
+// number of labels
+int LabelNum;
 
+/**
+ * Look up 'name' in current scope and all the enclosing scopes
+ */
 static Symbol LookupSymbol(Table tbl, char *name)
 {
 	Symbol p;
@@ -36,10 +55,15 @@ static Symbol LookupSymbol(Table tbl, char *name)
 	return NULL;
 }
 
+/**
+ * Add a symbol sym to symbol table tbl
+ */
 static Symbol AddSymbol(Table tbl, Symbol sym)
 {
 	unsigned int h = (unsigned long)sym->name & SYM_HASH_MASK;
 
+	/// many scope doesn't introduce any new variable, in order to
+	/// save memory, only when there is variable, allocate memory
 	if (tbl->buckets == NULL)
 	{
 		int size = sizeof(Symbol) * (SYM_HASH_MASK + 1);
@@ -55,6 +79,10 @@ static Symbol AddSymbol(Table tbl, Symbol sym)
 	return sym;
 }
 
+/**
+ * Enter a nesting scope. Increment the nesting level and 
+ * create two new symbol table for normal identifiers and tags.
+ */
 void EnterScope(void)
 {
 	Table t;
@@ -74,6 +102,10 @@ void EnterScope(void)
 	Tags = t;
 }
 
+/**
+ * Exit a nesting scope. Decrement the nesting level and 
+ * up to the enclosing normal identifiers and tags
+ */
 void ExitScope(void)
 {
 	Level--;

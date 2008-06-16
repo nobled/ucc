@@ -10,6 +10,12 @@ FunctionSymbol FSYM;
 static void CheckDeclarationSpecifiers(AstSpecifiers specs);
 static void CheckDeclarator(AstDeclarator dec);
 
+/**
+ * Check if the initializer expression is address constant.
+ * e.g. 
+ * int a;
+ * int b = &a;
+ */
 static AstExpression CheckAddressConstant(AstExpression expr)
 {
 	AstExpression addr;

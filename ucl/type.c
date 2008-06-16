@@ -7,11 +7,18 @@ struct type Types[VOID - CHAR + 1];
 Type DefaultFunctionType;
 Type WCharType;
 
+/**
+ * Apply default argument promotion to a type ty
+ */
 Type Promote(Type ty)
 {
 	return ty->categ < INT ? T(INT) : (ty->categ == FLOAT ? T(DOUBLE) : ty);
 }
 
+/**
+ * Check if two functions are compatible.
+ * If compatible, return 1; otherwise, return 0
+ */
 static int IsCompatibleFunction(FunctionType fty1, FunctionType fty2)
 {
 	Signature sig1 = fty1->sig;
@@ -20,6 +27,7 @@ static int IsCompatibleFunction(FunctionType fty1, FunctionType fty2)
 	int parLen1, parLen2;
 	int i;
 
+	// return types shall be compatible
 	if (! IsCompatibleType(fty1->bty, fty2->bty))
 		return 0;
 
@@ -89,22 +97,28 @@ mix_proto:
 	}				
 }
 
+/**
+ * Check if two types are compatible
+ * If compatible, return 1; otherwise, return 0
+ */
 int IsCompatibleType(Type ty1, Type ty2)
 {
 	if (ty1 == ty2)
 		return 1;
 
-	if (ty1->categ == ENUM && ty2->categ != ENUM)
-		ty1 = T(INT);
-
-	if (ty2->categ == ENUM && ty1->categ != ENUM)
-		ty2 = T(INT);
-
-	if (ty1->qual != ty2->qual || ty1->categ != ty2->categ)
+	if (ty1->qual != ty2->qual)
 		return 0;
 
 	ty1 = Unqual(ty1);
 	ty2 = Unqual(ty2);
+
+	if (ty1->categ == ENUM && ty2 == ty1->bty ||
+		ty2->categ == ENUM && ty1 == ty2->bty)
+		return 1;
+
+	if (ty1->categ != ty2->categ)
+		return 0;
+
 	switch (ty1->categ)
 	{
 	case POINTER:
@@ -122,6 +136,14 @@ int IsCompatibleType(Type ty1, Type ty2)
 	}
 }
 
+/**
+ * A very important principle: for those type constructing functions, they must keep
+ * the integrity of the base type.
+ */
+
+/**
+ * Construct an enumeration type whose name is id. id can be null
+ */
 Type Enum(char *id)
 {
 	EnumType ety;
@@ -130,6 +152,8 @@ Type Enum(char *id)
 
 	ety->categ = ENUM;
 	ety->id = id;
+
+	// enumeration type is compatilbe with int
 	ety->bty = T(INT);
 	ety->size = ety->bty->size;
 	ety->align = ety->bty->align;
@@ -138,6 +162,9 @@ Type Enum(char *id)
 	return (Type)ety;
 }
 
+/**
+ * Contruct a qualified type
+ */
 Type Qualify(int qual, Type ty)
 {
 	Type qty;
@@ -159,6 +186,9 @@ Type Qualify(int qual, Type ty)
 	return qty;
 }
 
+/**
+ * Get a type's unqualified version
+ */
 Type Unqual(Type ty)
 {
 	if (ty->qual)
@@ -166,6 +196,9 @@ Type Unqual(Type ty)
 	return ty;
 }
 
+/**
+ * Construct an array type, len is the array length.
+ */
 Type ArrayOf(int len, Type ty)
 {
 	Type aty;
@@ -181,6 +214,9 @@ Type ArrayOf(int len, Type ty)
 	return (Type)aty;
 }
 
+/**
+ * Construct a type pointing to ty.
+ */
 Type PointerTo(Type ty)
 {
 	Type pty;
@@ -196,6 +232,9 @@ Type PointerTo(Type ty)
 	return pty;
 }
 
+/**
+ * Construct a function type, the return type is ty. 
+ */
 Type FunctionReturn(Type ty, Signature sig)
 {
 	FunctionType fty;
@@ -212,6 +251,9 @@ Type FunctionReturn(Type ty, Signature sig)
 	return (Type)fty;
 }
 
+/**
+ * Construct a struct/union type whose name is id, id can be NULL.
+ */
 Type StartRecord(char *id, int categ)
 {
 	RecordType rty;
@@ -226,6 +268,11 @@ Type StartRecord(char *id, int categ)
 	return (Type)rty;
 }
 
+/**
+ * Add a field to struct/union type ty. fty is the type of the field.
+ * id is the name of the field. If the field is a bit-field, bits is its
+ * bit width, for non bit-field, bits will be 0.
+ */
 Field AddField(Type ty, char *id, Type fty, int bits)
 {
 	RecordType rty = (RecordType)ty;
@@ -255,6 +302,9 @@ Field AddField(Type ty, char *id, Type fty, int bits)
 	return fld;
 }
 
+/**
+ * Lookup if there is a field named id in struct/union type
+ */
 Field LookupField(Type ty, char *id)
 {
 	RecordType rty = (RecordType)ty;
@@ -262,6 +312,7 @@ Field LookupField(Type ty, char *id)
 
 	while (fld != NULL)
 	{
+		// unnamed struct/union field in a struct/union
 		if (fld->id == NULL && IsRecordType(fld->ty))
 		{
 			Field p;
@@ -279,6 +330,10 @@ Field LookupField(Type ty, char *id)
 	return NULL;
 }
 
+/**
+ * For unamed struct/union field in a struct/union, the offset of fields in the 
+ * unnamed struct/union should be fix up.
+ */
 void AddOffset(RecordType rty, int offset)
 {
 	Field fld = rty->flds;
@@ -296,6 +351,11 @@ void AddOffset(RecordType rty, int offset)
 
 }
 
+/**
+ * When a struct/union type's delcaration is finished, layout the struct/union.
+ * Calculate each field's offset from the beginning of struct/union and the size
+ * and alignment of struct/union.
+ */
 void EndRecord(Type ty)
 {
 	RecordType rty = (RecordType)ty;
@@ -307,6 +367,7 @@ void EndRecord(Type ty)
 	{
 		while (fld)
 		{
+			// align each field
 			fld->offset = rty->size = ALIGN(rty->size, fld->ty->align);
 			if (fld->id == NULL && IsRecordType(fld->ty))
 			{
@@ -314,19 +375,18 @@ void EndRecord(Type ty)
 			}
 			if (fld->bits == 0)
 			{
-				//if current field is not a bit-field, whenever last field is bit-field or not, 
-				//it will occupy a chunk of memory of its size.
+				/// if current field is not a bit-field, whenever last field is bit-field or not, 
+				/// it will occupy a chunk of memory of its size.
 				if (bits != 0)
 				{
-					rty->size = rty->size + T(INT)->size;
-					fld->offset = fld->offset + T(INT)->size;
+					fld->offset = rty->size = ALIGN(rty->size + T(INT)->size, fld->ty->align);
 				}
 				bits = 0;
 				rty->size = rty->size + fld->ty->size;
 			}
 			else if (bits + fld->bits <= intBits)
 			{
-				//current bit-field with previous bit-fields can be placed together
+				// current bit-field with previous bit-fields can be placed together
 				fld->pos = LITTLE_ENDIAN ? bits : intBits - bits;
 				bits = bits + fld->bits;
 				if (bits == intBits)
@@ -337,8 +397,8 @@ void EndRecord(Type ty)
 			}
 			else
 			{
-				//current bit-field can't be placed together with previous bit-fields,
-				//must start a new chunk of memory
+				/// current bit-field can't be placed together with previous bit-fields,
+				/// must start a new chunk of memory
 				rty->size += T(INT)->size;
 				fld->offset += T(INT)->size;
 				fld->pos = LITTLE_ENDIAN ? 0 : intBits - fld->bits;
@@ -354,8 +414,8 @@ void EndRecord(Type ty)
 		if (bits != 0)
 		{
 			rty->size += T(INT)->size;
-			rty->size = ALIGN(rty->size, rty->align);
 		}
+		rty->size = ALIGN(rty->size, rty->align);
 	}
 	else
 	{
@@ -374,8 +434,12 @@ void EndRecord(Type ty)
 	}
 }
 
+/**
+ * Return the composite type of ty1 and ty2.
+ */
 Type CompositeType(Type ty1, Type ty2)
 {
+	// ty1 and ty2 must be compatible when calling this function
 	assert(IsCompatibleType(ty1, ty2));
 
 	if (ty1->categ == ENUM)
@@ -421,6 +485,9 @@ Type CompositeType(Type ty1, Type ty2)
 	}
 }
 
+/**
+ * Return the common real type for ty1 and ty2
+ */
 Type CommonRealType(Type ty1, Type ty2)
 {
 	if (ty1->categ == LONGDOUBLE || ty2->categ == LONGDOUBLE)
@@ -460,6 +527,9 @@ Type CommonRealType(Type ty1, Type ty2)
 
 }
 
+/**
+ * Adjust paramter type
+ */
 Type AdjustParameter(Type ty)
 {
 	ty = Unqual(ty);
@@ -473,6 +543,18 @@ Type AdjustParameter(Type ty)
 	return ty;
 }
 
+/**
+ * Although int and long are different types from C language, but from some underlying implementations,
+ * the size and representation of them maybe identical. Actually, the function should be provided by 
+ * the target. UCC defines a series of type code: 
+ * I1: signed 1 byte       U1: unsigned 1 byte
+ * I2: signed 2 byte       U2: unsigned 2 byte
+ * I4: signed 4 byte       U4: unsigned 4 byte
+ * F4: 4 byte floating     F8: 8 byte floating
+ * V: no type              B: memory block, used for struct/union and array.
+ * The target should provide TypeCode to define the map from type category to type code. And UCC can
+ * add more type codes on demand of different targets.
+ */
 int TypeCode(Type ty)
 {
 	static int optypes[] = {I1, U1, I2, U2, I4, U4, I4, U4, I4, U4, I4, F4, F8, F8, U4, V, B, B, B};
@@ -481,6 +563,9 @@ int TypeCode(Type ty)
 	return optypes[ty->categ];
 }
 
+/**
+ * Get the type's user-readable string.
+ */
 char* TypeToString(Type ty)
 {
 	int qual;
@@ -543,6 +628,9 @@ char* TypeToString(Type ty)
 	}
 }
 
+/**
+ * Setup the type system according to the target configuration.
+ */
 void SetupTypeSystem(void)
 {
 	int i;

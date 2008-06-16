@@ -22,6 +22,11 @@ static unsigned int ELFHash(char *str, int len)
 	return h;
 }
 
+/**
+ * For identifiers, ucc maintains a name pool. If two identifiers' name is same,
+ * InternName() returns same pointer to a unique copy in the name pool. After this,
+ * the comparison of identifier name is very simple, just ==.
+ */
 char* InternName(char *id, int len)
 {
 	int i;
@@ -50,6 +55,15 @@ char* InternName(char *id, int len)
 	return p->name;
 }
 
+/**
+ * Different with identifier, ucc doesn't maintain a string pool for string literal. i.e.
+ * Even two string literals' character sequence is identical, there are seperate copy for
+ * them in memory.
+ * 
+ * ucc can handle string with arbitrary length unless there is no memory. AppendSTR() 
+ * appends the characters or wide characters in tmp to the string str and adds a terminating 
+ * '\0' or L'\0'
+ */
 void AppendSTR(String str, char *tmp, int len, int wide)
 {
 	int i, size;

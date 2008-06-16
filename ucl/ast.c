@@ -3,6 +3,10 @@
 
 int CurrentToken;
 
+/**
+ * Expect current token to be tok. If so, get next token; otherwise,
+ * report error
+ */
 void Expect(int tok)
 {
 	if (CurrentToken == tok)
@@ -11,6 +15,7 @@ void Expect(int tok)
 		return;
 	}
 
+	// a common case, missing ';' on last line
 	if (tok == TK_SEMICOLON && TokenCoord.line - PrevCoord.line == 1)
 	{
 		Error(&PrevCoord, "Expect ;");
@@ -21,6 +26,9 @@ void Expect(int tok)
 	}
 }
 
+/**
+ * Check if current token is in a token set
+ */
 int CurrentTokenIn(int toks[])
 {
 	int *p = toks;
@@ -35,6 +43,11 @@ int CurrentTokenIn(int toks[])
 	return 0;
 }
 
+/**
+ * Starting from current token, skip following tokens until
+ * encountering any token in the token set toks. This function is used by
+ * parser to recover from error.
+ */ 
 void SkipTo(int toks[], char *einfo)
 {
 	int *p = toks;

@@ -1,5 +1,9 @@
 #include "ucl.h"
 
+/**
+ * Create a vector with the given size
+ * @param size vector's size
+ */
 Vector CreateVector(int size)
 {
 	Vector v = NULL;
@@ -11,6 +15,9 @@ Vector CreateVector(int size)
 	return v;
 }
 
+/**
+ * Double the vector's size to hold more data
+ */
 void ExpandVector(Vector v)
 {
 	void *orig;

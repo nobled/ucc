@@ -26,6 +26,9 @@ enum ASMCode
 static Symbol X87Top;
 static int X87TCode;
 
+/**
+ * Put assembly code to move src into dst
+ */
 static void Move(int code, Symbol dst, Symbol src)
 {
 	Symbol opds[2];
@@ -35,6 +38,9 @@ static void Move(int code, Symbol dst, Symbol src)
 	PutASMCode(code, opds);
 }
 
+/**
+ * Mark the variable is in register
+ */
 static void AddVarToReg(Symbol reg, Symbol v)
 {
 	v->link = reg->link;
@@ -42,6 +48,11 @@ static void AddVarToReg(Symbol reg, Symbol v)
 	v->reg = reg;
 }
 
+/**
+ * When a variable is modified, if it is not in a register, do nothing;
+ * otherwise, spill othere variables in this register, set the variable's
+ * needWB flag.(need write back to memory)
+ */
 static void ModifyVar(Symbol p)
 {
 	Symbol reg;
@@ -57,6 +68,9 @@ static void ModifyVar(Symbol p)
 	p->needwb = 1;
 }
 
+/**
+ * Allocate register for instruction operand. index indicates which operand
+ */
 static void AllocateReg(IRInst inst, int index)
 {
 	Symbol reg;
@@ -64,15 +78,20 @@ static void AllocateReg(IRInst inst, int index)
 
 	p = inst->opds[index];
 
+	// In x86, UCC only allocates register for temporary
 	if (p->kind != SK_Temp)
 		return;
 
+	// if it is already in a register, mark the register as used
 	if (p->reg != NULL)
 	{
 		UsedRegs |= 1 << p->reg->val.i[0];
 		return;
 	}
 
+	/// in x86, the first source operand is also destination operand, 
+	/// reuse the first source operand's register if the first source operand 
+	/// will not be used after this instruction
 	if (index == 0 && SRC1->ref == 1 && SRC1->reg != NULL)
 	{
 		reg = SRC1->reg;
@@ -81,6 +100,8 @@ static void AllocateReg(IRInst inst, int index)
 		return;
 	}
 
+	/// get a register, if the operand is not destination operand, load the 
+	/// variable into the register
 	reg = GetReg();
 	if (index != 0)
 	{
@@ -89,6 +110,12 @@ static void AllocateReg(IRInst inst, int index)
 	AddVarToReg(reg, p);
 }
 
+/**
+ * Before executing an float instruction, UCC ensures that only TOP register of x87 stack 
+ * may be used. And whenenver a basic block ends, save the x87 stack top if needed. Thus
+ * we can assure that when entering and leaving each basic block, the x87 register stack
+ * is in init status.
+ */
 static void SaveX87Top(void)
 {
 	if (X87Top == NULL)
@@ -101,21 +128,30 @@ static void SaveX87Top(void)
 	X87Top = NULL;
 }
 
+/**
+ * Emit floating point branch instruction
+ */
 static void EmitX87Branch(IRInst inst, int tcode)
 {
+	// branch instructions modify EAX
 	SpillReg(X86Regs[EAX]);
 	PutASMCode(X86_LDF4 + tcode - F4, &SRC1);
 	PutASMCode(ASM_CODE(inst->opcode, tcode), inst->opds);
 }
 
+/**
+ * Emit floating point move instruction
+ */
 static void EmitX87Move(IRInst inst, int tcode)
 {
+	// let X87 TOP be the first source operand
 	if (X87Top != SRC1)
 	{
 		SaveX87Top();
 		PutASMCode(X86_LDF4 + tcode - F4, &SRC1);
 	}
 
+	// only put temporary in register
 	if (DST->kind != SK_Temp)
 	{
 		PutASMCode(X86_STF4 + tcode - F4, &DST);
@@ -129,8 +165,12 @@ static void EmitX87Move(IRInst inst, int tcode)
 	}
 }
 
+/**
+ * Emit floating point assign instruction
+ */
 static void EmitX87Assign(IRInst inst, int tcode)
 {
+	// let X87 TOP be the first source operand
 	if (SRC1 != X87Top)
 	{
 		SaveX87Top();
@@ -139,6 +179,7 @@ static void EmitX87Assign(IRInst inst, int tcode)
 
 	PutASMCode(ASM_CODE(inst->opcode, tcode), inst->opds);
 
+	// only put temporary in register
 	if (DST->kind != SK_Temp)
 	{
 		PutASMCode(X86_STF4 + tcode - F4, inst->opds);
@@ -152,6 +193,9 @@ static void EmitX87Assign(IRInst inst, int tcode)
 	}
 }
 
+/**
+ * Emit assembly code for block move
+ */
 static void EmitMoveBlock(IRInst inst)
 {
 	SpillReg(X86Regs[EDI]);
@@ -162,6 +206,9 @@ static void EmitMoveBlock(IRInst inst)
 	PutASMCode(X86_MOVB, inst->opds);
 }
 
+/**
+ * Emit assembly code for move
+ */
 static void EmitMove(IRInst inst)
 {
 	int tcode = TypeCode(inst->ty);
@@ -235,6 +282,9 @@ static void EmitMove(IRInst inst)
 	}
 }
 
+/**
+ * Put the variable in register
+ */
 static Symbol PutInReg(Symbol p)
 {
 	Symbol reg;
@@ -249,16 +299,24 @@ static Symbol PutInReg(Symbol p)
 	return reg;
 }
 
+/**
+ * Emit assembly code for indirect move
+ */
 static void EmitIndirectMove(IRInst inst)
 {
 	Symbol reg;
 
+	/// indirect move is the same as move, except using register indirect address
+	/// mode for destination operand
 	reg = PutInReg(DST);
 	inst->opcode = MOV;
 	DST = reg->next;
 	EmitMove(inst);
 }
 
+/**
+ * Emit assembly code for assign
+ */
 static void EmitAssign(IRInst inst)
 {
 	Symbol dst;

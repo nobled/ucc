@@ -2,12 +2,23 @@
 #include "ast.h"
 #include "expr.h"
 
+/**
+ * This module parses the C expression.
+ */
+
+/**
+ * The token's corresponding unary or binary opearator.
+ * Some tokens represent both unary and binary operator,
+ * e.g. * or +.
+ */
 static struct tokenOp TokenOps[] = 
 {
 #define TOKENOP(tok, bop, uop) {bop, uop},
 #include "tokenop.h"
 #undef  TOKENOP
 };
+
+// operators' precedence
 static int Prec[] =
 {
 #define OPINFO(op, prec, name, func, opcode) prec,
@@ -15,8 +26,11 @@ static int Prec[] =
 	0
 #undef OPINFO
 };
-static struct astExpression Constant0 = { NK_Expression, NULL, {NULL, 0, 0, 0}, T(INT), OP_CONST };
 
+// expression for integer constant 0
+AstExpression Constant0;
+
+// operator names, mainly used for error reporting
 char *OPNames[] = 
 {
 #define OPINFO(op, prec, name, func, opcode) name,
@@ -49,6 +63,9 @@ static AstExpression ParsePrimaryExpression(void)
 
 		return expr;
 
+	/// Notice: Only when parsing constant and string literal,
+	/// ty member in astExpression is used since from OP_CONST
+	/// and OP_STR alone the expression's type can't be determined
 	case TK_INTCONST:
 	case TK_UINTCONST:
 	case TK_LONGCONST:
@@ -63,6 +80,9 @@ static AstExpression ParsePrimaryExpression(void)
 
 		if (CurrentToken >= TK_FLOATCONST)
 			CurrentToken++;
+
+		/// nasty, requires that both from TK_INTCONST to TK_LDOUBLECONST
+		/// and from INT to LDOUBLE are consecutive
 		expr->ty = T(INT + CurrentToken - TK_INTCONST);
 		expr->op = OP_CONST;
 		expr->val = TokenValue;
@@ -92,7 +112,7 @@ static AstExpression ParsePrimaryExpression(void)
 
 	default:
 		Error(&TokenCoord, "Expect identifier, string, constant or (");
-		return &Constant0;
+		return Constant0;
 	}
 }
 
@@ -140,6 +160,8 @@ static AstExpression ParsePostfixExpression(void)
 			{
 				AstNode *tail;
 
+				/// function call expression's second kid is actually
+				/// a list of expression instead of a single expression
 				p->kids[1] = ParseAssignmentExpression();
 				tail = &p->kids[1]->next;
 				while (CurrentToken == TK_COMMA)
@@ -188,6 +210,7 @@ static AstExpression ParsePostfixExpression(void)
 			break;
 
 		default:
+
 			return expr;
 		}
 	}
@@ -230,6 +253,10 @@ static AstExpression ParseUnaryExpression()
 
 	case TK_LPAREN:
 
+		/// When current token is (, it may be a type cast expression
+		/// or a primary expression, we need to look ahead one token,
+		/// if next token is type name, the expression is treated as
+		/// a type cast expression; otherwise a primary expresion
 		BeginPeekToken();
 		t = GetNextToken();
 		if (IsTypeName(t))
@@ -255,6 +282,7 @@ static AstExpression ParseUnaryExpression()
 
 	case TK_SIZEOF:
 
+		/// this case hase the same issue with TK_LPAREN case
 		CREATE_AST_NODE(expr, Expression);
 
 		expr->op = OP_SIZEOF;
@@ -268,6 +296,9 @@ static AstExpression ParseUnaryExpression()
 				EndPeekToken();
 
 				NEXT_TOKEN;
+				/// In this case, the first kid is not an expression,
+				/// but thanks to both type name and expression have a 
+				/// kind member to discriminate them.
 				expr->kids[0] = (AstExpression)ParseTypeName();
 				Expect(TK_RPAREN);
 			}
@@ -290,7 +321,7 @@ static AstExpression ParseUnaryExpression()
 }
 
 /**
- * This function will parse a binary expression
+ * Parse a binary expression, from logical-OR-expresssion to multiplicative-expression
  */
 static AstExpression ParseBinaryExpression(int prec)
 {
@@ -299,6 +330,8 @@ static AstExpression ParseBinaryExpression(int prec)
 	int newPrec;
 
 	expr = ParseUnaryExpression();
+	/// while the following binary operater's precedence is higher than current
+	/// binary operator's precedence, parses a higer precedence expression
 	while (IsBinaryOP(CurrentToken) && (newPrec = Prec[BINARY_OP]) >= prec)
 	{
 		CREATE_AST_NODE(binExpr, Expression);
@@ -354,7 +387,7 @@ static AstExpression ParseConditionalExpression(void)
  *      unary-expression assignment-operator assignment-expression
  *  assignment-operator:
  *      = *= /= %= += -= <<= >>= &= ^= |=
- *  There is a little twist here: we always treat the first nonterminal
+ *  There is a little twist here: the parser always treats the first nonterminal
  *  as a conditional expression.
  */
 AstExpression ParseAssignmentExpression(void)
@@ -404,6 +437,9 @@ AstExpression ParseExpression(void)
 	return expr;
 }
 
+/**
+ * Parse constant expression which is actually a conditional expression
+ */ 
 AstExpression ParseConstantExpression(void)
 {
 	return ParseConditionalExpression();

@@ -14,6 +14,9 @@ int FIRST_Declaration[] = { FIRST_DECLARATION, 0};
 static AstDeclarator ParseDeclarator(int abstract);
 static AstSpecifiers ParseDeclarationSpecifiers(void);
 
+/**
+ * Get the identifier declared by the declarator dec
+ */
 static char* GetOutermostID(AstDeclarator dec)
 {
 	if (dec->kind == NK_NameDeclarator)
@@ -22,6 +25,44 @@ static char* GetOutermostID(AstDeclarator dec)
 	return GetOutermostID(dec->dec);
 }
 
+/**
+ * UCC divides the syntax parsing and semantic check into two seperate passes.
+ * But during syntax parsing, the parser needs to recognize C's typedef name.
+ * In order to handle this, the parser performs minimum semantic check to 
+ * process typedef name. For the parser, it is enough to know if an identifier 
+ * is a typedef name.
+ * 
+ * The parser uses struct tdName to manage a typedef name. 
+ * id: typedef name id
+ * level: if two typedef names' id are same, the level will be the level of the 
+ * typedef name who is in the outer scope. e.g.
+ * typedef int a;
+ * int f(void)
+ * {
+ *     typedef int a;
+ * }
+ * the a's level will be 0 instead of 1.
+ * overload: A typedef name maybe used as variable in inner scope, e.g.
+ * typedef int a;
+ * int f(int a)
+ * {
+ * }
+ * In f(), a is used as variable instead of typedef name.
+ * For these cases, overload is set. When the scope terminates, overload 
+ * is reset.
+ *
+ * The parser maintains two vectors: TypedefNames and OverloadNames
+ * Whenever encountering a declaration, if it is a typedef name, records
+ * it in the TypedefNames; else if the declaration redefines a typedef name
+ * in outer scope as a variable, records it in the OverloadNames.
+ * TypedefNames is for all the scope, while OverloadNames is for current scope,
+ * when current scope terminates, reset the overload flags of all the item in
+ * OverloadNames.
+ */
+
+/**
+ * Decide if id is a typedef name
+ */
 static int IsTypedefName(char *id)
 {
 	Vector v = TypedefNames;
@@ -35,6 +76,11 @@ static int IsTypedefName(char *id)
 	return 0;
 }
 
+/**
+ * If sclass is TK_TYPEDEF, records it in TypedefNames.
+ * Otherwise, if id redefines a typedef name in outer scope,
+ * records the typedef name in OverloadNames.
+ */
 static void CheckTypedefName(int sclass, char *id)
 {
 	Vector v;
@@ -74,6 +120,9 @@ static void CheckTypedefName(int sclass, char *id)
 	}
 }
 
+/**
+ * Perform minimum semantic check for each declaration 
+ */
 static void PreCheckTypedef(AstDeclaration decl)
 {
 	AstNode p;
@@ -92,6 +141,9 @@ static void PreCheckTypedef(AstDeclaration decl)
 	}
 }
 
+/**
+ * When current scope except file scope terminates, clear OverloadNames.
+ */
 void PostCheckTypedef(void)
 {
 	TDName tn;
@@ -195,7 +247,6 @@ static AstDeclarator ParseDirectDeclarator(int kind)
 		if (kind == DEC_ABSTRACT)
 		{
 			Error(&TokenCoord, "Identifier is not permitted in the abstract declarator");
-			return dec;
 		}
 
 		dec->id = TokenValue.p;
@@ -300,6 +351,8 @@ static AstDeclarator ParsePostfixDeclarator(int kind)
 		}
 		else if (CurrentToken == TK_LPAREN)
 		{
+			/// notice: for abstract declarator, identifier list is not permitted,
+			/// but we leave this to semantic check
 			AstFunctionDeclarator funcDec;
 
 			CREATE_AST_NODE(funcDec, FunctionDeclarator);
@@ -391,6 +444,13 @@ static AstDeclarator ParsePostfixDeclarator(int kind)
  *  direct-declarator:
  *		ID
  *		( declarator )
+ *
+ *	The declartor is similar as the abstract declarator, we use one function
+ *	ParseDeclarator() to parse both of them. kind indicate to parse which kind
+ *	of declarator. The possible value can be:
+ *	DEC_CONCRETE: parse a declarator
+ *	DEC_ABSTRACT: parse an abstract declarator
+ *	DEC_CONCRETE | DEC_ABSTRACT: both of them are ok
  */
 static AstDeclarator ParseDeclarator(int kind)
 {
@@ -409,7 +469,7 @@ static AstDeclarator ParseDeclarator(int kind)
 			CREATE_AST_NODE(tok, Token);
 			tok->token = CurrentToken;
 			*tail = (AstNode)tok;
-			tail = &(*tail)->next;
+			tail = &tok->next;
 			NEXT_TOKEN;
 		}
 		ptrDec->dec = ParseDeclarator(kind);
@@ -463,6 +523,9 @@ static AstStructDeclaration ParseStructDeclaration(void)
 
 	CREATE_AST_NODE(stDecl, StructDeclaration);
 
+	/// declaration specifiers is a superset of speicifier qualifier list,
+	/// for simplicity, just use ParseDeclarationSpecifiers() and check if
+	/// there is storage class
 	stDecl->specs = ParseDeclarationSpecifiers();
 	if (stDecl->specs->stgClasses != NULL)
 	{
@@ -474,7 +537,7 @@ static AstStructDeclaration ParseStructDeclaration(void)
 		Error(&stDecl->coord, "Expect type specifier or qualifier");
 	}
 
-	//anonymous struct/union 
+	// an extension to C89, supports anonymous struct/union member in struct/union
 	if (CurrentToken == TK_SEMICOLON)
 	{
 		NEXT_TOKEN;
@@ -538,6 +601,7 @@ lbrace:
 			return stSpec;
 		}
 
+		// FIXME: use a better way to handle errors in struct declaration list
 		tail = &stSpec->stDecls;
 		while (CurrentTokenIn(FIRST_StructDeclaration))
 		{
@@ -549,7 +613,7 @@ lbrace:
 		return stSpec;
 
 	default:
-		Error(&TokenCoord, "Identifier or { is expected after struct/union!");
+		Error(&TokenCoord, "Expect identifier or { after struct/union");
 		return stSpec;
 	}
 }
@@ -727,7 +791,7 @@ next_specifier:
 
 	case TK_ID:
 
-		if (!seeTy && IsTypedefName(TokenValue.p))
+		if (! seeTy && IsTypedefName(TokenValue.p))
 		{
 			AstTypedefName tname;
 
@@ -768,6 +832,10 @@ int IsTypeName(int tok)
 	return tok == TK_ID ? IsTypedefName(TokenValue.p) : (tok >= TK_AUTO && tok <= TK_VOID);
 }
 
+/**
+ * type-name:
+ *     specifier-qualifier-list abstract-declarator
+ */
 AstTypeName ParseTypeName(void)
 {
 	AstTypeName tyName;
@@ -786,8 +854,7 @@ AstTypeName ParseTypeName(void)
 }
 
 /**
- *  The function defintion and declaration have some common parts: 
- *  we simply treat the common parts as 
+ *  The function defintion and declaration have some common parts:
  *	declaration-specifiers [init-declarator-list]
  *  if we found that the parts followed by a semicolon, then it is a declaration
  *  or if the init-declarator list is a stand-alone declarator, then it may be
@@ -827,6 +894,9 @@ AstDeclaration ParseDeclaration(void)
 	return decl;
 }
 
+/**
+ * If initDec is a legal function declarator, return it 
+ */
 static AstFunctionDeclarator GetFunctionDeclarator(AstInitDeclarator initDec)
 {
 	AstDeclarator dec;
@@ -882,10 +952,14 @@ static AstNode ParseExternalDeclaration(void)
 			if (CurrentToken != TK_LBRACE)
 				return (AstNode)decl;
 
+			// maybe a common error, function definition follows ;
 			Error(&decl->coord, "maybe you accidently add the ;");
 		}
 		else if (fdec->paramTyList && CurrentToken != TK_LBRACE)
+		{
+			// a common error, function declaration loses ;
 			goto not_func;
+		}
 
 		CREATE_AST_NODE(func, Function);
 
@@ -957,3 +1031,4 @@ AstTranslationUnit ParseTranslationUnit(char *filename)
 
 	return transUnit;
 }
+

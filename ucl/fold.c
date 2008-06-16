@@ -14,6 +14,9 @@
     else if (tcode == F4) val.i[0] = expr1->val.f op expr2->val.f;                           \
     else if (tcode == F8) val.i[0] = expr1->val.d op expr2->val.d;
 
+/**
+ * Cast constant expression. e.g. (float)3
+ */
 AstExpression FoldCast(Type ty, AstExpression expr)
 {
 	int scode = TypeCode(expr->ty);
@@ -113,6 +116,9 @@ AstExpression Constant(struct coord coord, Type ty, union value val)
 	return expr;
 }
 
+/**
+ * Constant folding. e.g. 3 + 4
+ */
 AstExpression FoldConstant(AstExpression expr)
 {
 	int tcode;

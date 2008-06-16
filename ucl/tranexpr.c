@@ -3,23 +3,47 @@
 #include "expr.h"
 #include "gen.h"
 
+/**
+ * Translates a primary expression.
+ */
 static Symbol TranslatePrimaryExpression(AstExpression expr)
 {
 	if (expr->op == OP_CONST)
 		return AddConstant(expr->ty, expr->val);
 
+	/// if the expression is adjusted from an array or a function,
+	/// returns the address of the symbol for this identifier
 	if (expr->op == OP_STR || expr->isarray || expr->isfunc)
 		return AddressOf(expr->val.p);
 
 	return expr->val.p;
 }
 
+/**
+ * Reading a bit field.
+ * @param fld  bit field description 
+ * @param p    the symbol which represents the whole integer containing the bit field
+ */
 static Symbol ReadBitField(Field fld, Symbol p)
 {
 	int size  = 8 * fld->ty->size;
 	int lbits = size - (fld->bits + fld->pos);
 	int rbits = size - (fld->bits);
 
+	/**
+	 * Given the following code snippet:
+	 * struct st
+	 * {
+	 *   int a;
+	 *   int b : 3;
+	 * } st;    
+	 *          |bits(8)|    pos(16)   |        
+	 * ---------------------------------
+	 * |        |  b    |              |
+	 * ---------------------------------
+	 * In order to read b's value, at first, we must left shift b to the most significant bit
+	 * then right shift b's to the least significant bit.
+	 */
 	p = Simplify(T(INT), LSH, p, IntConstant(lbits));
 	p = Simplify(T(INT), RSH, p, IntConstant(rbits));
 
@@ -86,6 +110,19 @@ static Symbol Offset(Type ty, Symbol addr, Symbol voff, int coff)
 	return Deref(ty, Simplify(T(POINTER), ADD, addr, IntConstant(coff)));
 }
 
+/**
+ * Generate intermedicate code to calculate a branch expression's value.
+ * e.g. int a, b; a = a > b;
+ * Introduces a new temporary t to holds the value of a > b.
+ *     if a > b goto trueBB
+ * falseBB:
+ *     t = 0;
+ *     goto nextBB;
+ * trueBB:
+ *     t = 1;
+ * nextBB:
+ *     ...
+ */
 static Symbol TranslateBranchExpression(AstExpression expr)
 {
 	BBlock nextBB, trueBB, falseBB;
@@ -110,6 +147,9 @@ static Symbol TranslateBranchExpression(AstExpression expr)
 	return t;
 }
 
+/**
+ * Translates array index access expression.
+ */
 static Symbol TranslateArrayIndex(AstExpression expr)
 {
 	AstExpression p;
@@ -117,6 +157,7 @@ static Symbol TranslateArrayIndex(AstExpression expr)
 	int coff = 0;
 
 	p = expr;
+	/// 
 	do
 	{
 		if (p->kids[1]->op == OP_CONST)

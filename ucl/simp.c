@@ -1,6 +1,10 @@
 #include "ucl.h"
 #include "gen.h"
 
+/**
+ * if u > 1 and u == 2 power of n, return;
+ * otherwise, return 0
+ */
 static int Power2(unsigned int u)
 {
 	int n;
@@ -16,6 +20,9 @@ static int Power2(unsigned int u)
 	return 0;
 }
 
+/**
+ * Perform algebraic simplification and strenth reduction
+ */
 Symbol Simplify(Type ty, int opcode, Symbol src1, Symbol src2)
 {
 	VariableSymbol t;
@@ -31,9 +38,12 @@ Symbol Simplify(Type ty, int opcode, Symbol src1, Symbol src2)
 	switch (opcode)
 	{
 	case ADD:
+		// a + 0 = a
 		if (src2->val.i[0] == 0)
 			return src1;
 
+		// a + c1 + c2 = a + (c1 + c2)
+		// a - c1 + c2 = a + (-c1 + c2)
 		p1 = src1; c1 = 0;
 		if (src1->kind == SK_Temp)
 		{
@@ -43,7 +53,7 @@ Symbol Simplify(Type ty, int opcode, Symbol src1, Symbol src2)
 			    (t->def->op == ADD || t->def->op == SUB))
 			{
 				p1 = t->def->src1;
-				c1 = (t->def->op == ADD) * t->def->src2->val.i[0];
+				c1 = (t->def->op == ADD ? 1 : -1) * t->def->src2->val.i[0];
 			}
 		}
 		if (c1 != 0)
@@ -54,10 +64,11 @@ Symbol Simplify(Type ty, int opcode, Symbol src1, Symbol src2)
 		break;
 
 	case SUB:
-		//a - 0 = a
+		// a - 0 = a
 		if (src2->kind == SK_Constant && src2->val.i[0] == 0)
 			return src1;
 
+		// put source operand into v + c format (v maybe NULL, c maybe 0)
 		p1 = src1; c1 = 0;
 		if (src1->kind == SK_Temp)
 		{
@@ -66,7 +77,7 @@ Symbol Simplify(Type ty, int opcode, Symbol src1, Symbol src2)
 			    (t->def->op == ADD || t->def->op == SUB))
 			{
 				p1 = t->def->src1;
-				c1 = (t->def->op == ADD) * t->def->src2->val.i[0];
+				c1 = (t->def->op == ADD ? 1 : -1) * t->def->src2->val.i[0];
 			}
 		}
 		else if (src1->kind == SK_Constant)
@@ -82,7 +93,7 @@ Symbol Simplify(Type ty, int opcode, Symbol src1, Symbol src2)
 			    (t->def->op == ADD || t->def->op == SUB))
 			{
 				p2 = t->def->src1;
-				c2 = (t->def->op == ADD) * t->def->src2->val.i[0];
+				c2 = (t->def->op == ADD ? 1 : -1) * t->def->src2->val.i[0];
 			}
 		}
 		else if (src2->kind == SK_Constant)
@@ -90,17 +101,21 @@ Symbol Simplify(Type ty, int opcode, Symbol src1, Symbol src2)
 			p2 = NULL;
 			c2 = src2->val.i[0];
 		}
+
 		if (p1 == p2)
 		{
+			// (a + c1) - (a + c2) = c1 - c2
 			return IntConstant(c1 - c2);
 		}
 		else if (p1 == NULL)
 		{
+			// c1 - (a + c2) = (c1 - c2) - a
 			src1 = IntConstant(c1 - c2);
 			src2 = p2;
 		}
 		else if (p2 == NULL)
 		{
+			// (a + c1) - c2 = a + (c1 - c2)
 			src1 = p1;
 			opcode = ADD;
 			src2 = IntConstant(c1 - c2);
@@ -109,10 +124,11 @@ Symbol Simplify(Type ty, int opcode, Symbol src1, Symbol src2)
 
 	case MUL:
 	case DIV:
-		//a * 1 = a; a / 1 = a;
+		// a * 1 = a; a / 1 = a;
 		if (src2->val.i[0] == 1)
 			return src1;
 
+		// a * 2 power of n = a >> n
 		c1 = Power2(src2->val.i[0]);
 		if (c1 != 0)
 		{
@@ -122,9 +138,11 @@ Symbol Simplify(Type ty, int opcode, Symbol src1, Symbol src2)
 		break;
 
 	case MOD:
+		// a % 1 = 0
 		if (src2->val.i[0] == 1)
 			return IntConstant(0);
 
+		// a % 2 power of n = a & (2 power of n - 1)
 		c1 = Power2(src2->val.i[0]);
 		if (c1 != 0)
 		{
@@ -135,11 +153,13 @@ Symbol Simplify(Type ty, int opcode, Symbol src1, Symbol src2)
 
 	case LSH:
 	case RSH:
+		// a >> 0 = a << 0 = a
 		if (src2->val.i[0] == 0)
 			return src1;
 		break;
 
 	case BOR:
+		// a | 0 = a; a | -1 = -1
 		if (src2->val.i[0] == 0)
 			return src1;
 		if (src2->val.i[0] == -1)
@@ -147,11 +167,13 @@ Symbol Simplify(Type ty, int opcode, Symbol src1, Symbol src2)
 		break;
 
 	case BXOR:
+		// a ^ 0 = a
 		if (src2->val.i[0] == 0)
 			return src1;
 		break;
 
 	case BAND:
+		// a & 0 = 0, a & -1 = a
 		if (src2->val.i[0] == 0)
 			return IntConstant(0);
 		if (src2->val.i[0] == -1)

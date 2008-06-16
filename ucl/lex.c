@@ -23,6 +23,12 @@ char* TokenStrings[] =
 #undef  TOKEN
 };
 
+/**
+ * Scans preprocessing directive which specify the line number and filename such as:
+ * # line 6 "C:\\Program Files\\Visual Stduio 6\\VC6\\Include\\stdio.h" or
+ * # 6 "/usr/include/stdio.h"
+ * Ignores other preprocessing directive.
+ */
 static void ScanPPLine(void)
 {
 	int line = 0;
@@ -963,8 +969,8 @@ int GetNextToken(void)
 {
 	int tok;
 
-	SkipWhiteSpace();
 	PrevCoord = TokenCoord;
+	SkipWhiteSpace();
 	TokenCoord.line = LINE;
 	TokenCoord.col  = (int)(CURSOR - LINEHEAD + 1);
 

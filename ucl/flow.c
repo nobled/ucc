@@ -1,6 +1,9 @@
 #include "ucl.h"
 #include "gen.h"
 
+/**
+ * Add a predecessor p to basic block bb
+ */
 static void AddPredecessor(BBlock bb, BBlock p)
 {
 	CFGEdge e;
@@ -12,6 +15,9 @@ static void AddPredecessor(BBlock bb, BBlock p)
 	bb->npred++;
 }
 
+/**
+ * Add a successor s to basic block bb
+ */ 
 static void AddSuccessor(BBlock bb, BBlock s)
 {
 	CFGEdge e;
@@ -23,6 +29,9 @@ static void AddSuccessor(BBlock bb, BBlock s)
 	bb->nsucc++;
 }
 
+/**
+ * Remove a basic block from the edges
+ */
 static void RemoveEdge(CFGEdge *pprev, BBlock bb)
 {
 	CFGEdge e;
@@ -42,18 +51,28 @@ static void RemoveEdge(CFGEdge *pprev, BBlock bb)
 	
 }
 
+/**
+ * Remove a predecessor p from basic block bb
+ */
 static void RemovePredecessor(BBlock bb, BBlock p)
 {
 	RemoveEdge(&bb->preds, p);
 	bb->npred--;
 }
 
+/**
+ * Remove a successor s from basic block bb
+ */
 static void RemoveSuccessor(BBlock bb, BBlock s)
 {
 	RemoveEdge(&bb->succs, s);
 	bb->nsucc--;
 }
 
+/**
+ * If p is not a predecessor of basic block bb, 
+ * add the predecessor p to bb
+ */
 static void TryAddPredecessor(BBlock bb, BBlock p)
 {
 	CFGEdge pred;
@@ -68,6 +87,10 @@ static void TryAddPredecessor(BBlock bb, BBlock p)
 	AddPredecessor(bb, p);
 }
 
+/**
+ * If s is not a predecessor of basic block bb,
+ * add the successor s to bb
+ */
 static void TryAddSuccessor(BBlock bb, BBlock s)
 {
 	CFGEdge succ;
@@ -82,11 +105,13 @@ static void TryAddSuccessor(BBlock bb, BBlock s)
 	AddSuccessor(bb, s);
 }
 
+/**
+ * Merge two basic blocks bb1 and bb2 into one basic block bb1.
+ */
 static void MergeInstructions(BBlock bb1, BBlock bb2)
 {
 	IRInst bb1_lasti = bb1->insth.prev;
 	IRInst bb2_firsti = bb2->insth.next;
-
 	
 	if (bb1_lasti->opcode >= JZ && bb1_lasti->opcode <= JMP)
 	{

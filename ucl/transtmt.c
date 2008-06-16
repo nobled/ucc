@@ -7,12 +7,26 @@
 
 static void TranslateStatement(AstStatement stmt);
 
+/**
+ * This function decides if an expression has side effect.
+ * Side effect means changes in the state of execution environment.
+ * e.g. modifying an object or accessing a volatile object
+ */
 static int HasSideEffect(AstExpression expr)
 {
 	if (expr == NULL)
 		return 0;
 
-	if (expr->op == OP_CALL    || expr->op >= OP_ASSIGN && expr->op <= OP_MOD_ASSIGN ||
+	// accessing a volatile object
+	if (expr->op == OP_ID && expr->ty->qual & VOLATILE)
+		return 1;
+
+	// function call, a function may not have side effect but ucc doesn't check this
+	if (expr->op == OP_CALL)
+		return 1;
+
+	// modifying an object
+	if (expr->op >= OP_ASSIGN && expr->op <= OP_MOD_ASSIGN ||
 	    expr->op == OP_PREINC  || expr->op == OP_PREDEC ||
 	    expr->op == OP_POSTINC || expr->op == OP_POSTDEC)
 		return 1;
@@ -20,6 +34,9 @@ static int HasSideEffect(AstExpression expr)
 	return HasSideEffect(expr->kids[0]) || HasSideEffect(expr->kids[1]);
 }
 
+/**
+ * This function translates an expression statement
+ */
 static void TranslateExpressionStatement(AstStatement stmt)
 {
 	AstExpressionStatement exprStmt = AsExpr(stmt);
@@ -30,12 +47,18 @@ static void TranslateExpressionStatement(AstStatement stmt)
 	}
 }
 
+/**
+ * This function translates a labeled statement
+ */
 static void TranslateLabelStatement(AstStatement stmt)
 {
 	AstLabelStatement labelStmt = AsLabel(stmt);
 
+	// ignore unreferenced label
 	if (labelStmt->label->ref > 0)
 	{
+		/// if the label is not associated with a basic block,
+		/// create a new basic block to associate with it
 		if (labelStmt->label->respBB == NULL)
 		{
 			labelStmt->label->respBB = CreateBBlock();
@@ -45,22 +68,52 @@ static void TranslateLabelStatement(AstStatement stmt)
 	TranslateStatement(labelStmt->stmt);
 }
 
+/**
+ * This function translates a case statement.
+ */
 static void TranslateCaseStatement(AstStatement stmt)
 {
 	AstCaseStatement caseStmt = AsCase(stmt);
 
+	/// see TranslateSwitchStatement, which already creates a basic block
+	/// to associate with each case statement in a switch
 	StartBBlock(caseStmt->respBB);
 	TranslateStatement(caseStmt->stmt);
 }
 
+/**
+ * This function translates a default statement
+ */
 static void TranslateDefaultStatement(AstStatement stmt)
 {
 	AstDefaultStatement defStmt = AsDef(stmt);
-
+	
+	/// see TranslateSwitchStatement, which already creates a basic block
+	/// to associate with the default statement in a switch
 	StartBBlock(defStmt->respBB);
 	TranslateStatement(defStmt->stmt);
 }
 
+/**
+ * This function translates an if statement.
+ *
+ * if (expr) stmt is translated into:
+ *     if ! expr goto nextBB
+ * trueBB:
+ *     stmt
+ * nextBB:
+ *     ...     
+ *
+ * if (expr) stmt1 else stmt2 is translated into:
+ *     if ! expr goto falseBB
+ * trueBB:
+ *     stmt1
+ *     goto nextBB
+ * falseBB:
+ *     stmt2
+ * nextBB:
+ *     ...
+ */
 static void TranslateIfStatement(AstStatement stmt)
 {
 	AstIfStatement ifStmt = AsIf(stmt);
@@ -95,6 +148,18 @@ static void TranslateIfStatement(AstStatement stmt)
 	StartBBlock(nextBB);
 }
 
+/**
+ * This function translates a while statement.
+ *
+ * while (expr) stmt is translated into:
+ * goto contBB
+ * loopBB:
+ *     stmt
+ * contBB:
+ *     if (expr) goto loopBB
+ * nextBB:
+ *     ...
+ */
 static void TranslateWhileStatement(AstStatement stmt)
 {
 	AstLoopStatement whileStmt = AsLoop(stmt);
@@ -114,6 +179,17 @@ static void TranslateWhileStatement(AstStatement stmt)
 	StartBBlock(whileStmt->nextBB);
 }
 
+/**
+ * This function translates a do statement.
+ *
+ * do stmt while (expr) is translated into:
+ * loopBB:
+ *     stmt
+ * contBB:
+ *     if (expr) goto loopBB
+ * nextBB:
+ *     ...
+ */
 static void TranslateDoStatement(AstStatement stmt)
 {
 	AstLoopStatement doStmt = AsLoop(stmt);
@@ -131,6 +207,24 @@ static void TranslateDoStatement(AstStatement stmt)
 	StartBBlock(doStmt->nextBB);
 }
 
+/**
+ * This function translates a for statement.
+ *
+ * for (expr1; expr2; expr3) stmt is translated into
+ *     expr1
+ *     goto testBB
+ * loopBB:
+ *     stmt
+ * contBB:
+ *     expr3
+ * testBB:
+ *     if expr2 goto loopBB (goto loopBB if expr2 is NULL)
+ * nextBB:
+ *     ...
+ * Please pay attention to the difference between for and while
+ * The continue point and loop test point is same for a while statemnt,
+ * but different for a for statment.
+ */
 static void TranslateForStatement(AstStatement stmt)
 {
 	AstForStatement forStmt = AsFor(stmt);
@@ -168,11 +262,20 @@ static void TranslateForStatement(AstStatement stmt)
 	StartBBlock(forStmt->nextBB);
 }
 
-
+/**
+ * This funtion translates a goto statement
+ *
+ * goto label is translation into:
+ *     goto labelBB
+ * nextBB:
+ *     ...
+ */
 static void TranslateGotoStatement(AstStatement stmt)
 {
 	AstGotoStatement gotoStmt = AsGoto(stmt);
 
+	/// if there is no basic block associated with the label, 
+	/// create a basic block to associate with it
 	if (gotoStmt->label->respBB == NULL)
 	{
 		gotoStmt->label->respBB = CreateBBlock();
@@ -181,6 +284,16 @@ static void TranslateGotoStatement(AstStatement stmt)
 	StartBBlock(CreateBBlock());
 }
 
+/**
+ * This function translates a break statement.
+ * A break statement terminates the execution of associated
+ * switch or loop.
+ *
+ * break is translated into:
+ *     goto switch or loop's nextBB
+ * nextBB:
+ *     ...
+ */
 static void TranslateBreakStatement(AstStatement stmt)
 {
 	AstBreakStatement brkStmt = AsBreak(stmt);
@@ -196,6 +309,15 @@ static void TranslateBreakStatement(AstStatement stmt)
 	StartBBlock(CreateBBlock());
 }
 
+/**
+ * This function translates a continue statement.
+ * A continue statement causes next iteration of associated loop.
+ *
+ * continue is translate into:
+ *    goto loop's contBB
+ * nextBB:
+ *    ...
+ */
 static void TranslateContinueStatement(AstStatement stmt)
 {
 	AstContinueStatement contStmt = AsCont(stmt);
@@ -204,6 +326,10 @@ static void TranslateContinueStatement(AstStatement stmt)
 	StartBBlock(CreateBBlock());
 }
 
+/**
+ * Translates a return statement.
+ * A return statement terminates execution of current function.
+ */
 static void TranslateReturnStatement(AstStatement stmt)
 {
 	AstReturnStatement retStmt = AsRet(stmt);
@@ -216,6 +342,9 @@ static void TranslateReturnStatement(AstStatement stmt)
 	StartBBlock(CreateBBlock());
 }
 
+/**
+ * Merge the switch buckets.
+ */
 static int MergeSwitchBucket(SwitchBucket *pBucket)
 {
 	SwitchBucket bucket = *pBucket;
@@ -238,6 +367,15 @@ static int MergeSwitchBucket(SwitchBucket *pBucket)
 	return count;
 }
 
+/**
+ * Generates selection and jump code for an array of switch buckets using a binary search.
+ * Given the following bucket array:
+ * [0, 1, 2] [9, 11] [24]
+ * First select [9, 11].
+ * if choice < 9, goto left half [0, 1, 2]
+ * if choice > 11, goto right half [24]
+ * generate indirect jump to each case statement and default label
+ */
 static void TranslateSwitchBuckets(SwitchBucket *bucketArray, int left, int right, 
                                    Symbol choice, BBlock currBB, BBlock defBB)
 {
@@ -298,6 +436,28 @@ static void TranslateSwitchBuckets(SwitchBucket *bucketArray, int left, int righ
 
 }
 
+/**
+ * Generate intermediate code for switch statement.
+ * During semantic check, the case statements in a switch statement is already ordered in ascending order.
+ * The first step of this function is to divide these case statements into switch buckets.
+ * The dividing criteria is:
+ * Each switch bucket holds some case statements, there must be a case statement with minimum value(minVal)
+ * and a case statement with maximum value(maxVal). We define the density of the switch bucket to be:
+ * density = number of case statements / (maxVal - minVal). The density of a switch bucket must be greater
+ * than 1/2.
+ * And when adding new case statements into a switch bucket, there is a chance that the switch bucket can be 
+ * merged with previous switch buckets.
+ * 
+ * Given the following switch statement:
+ * switch (a) { case 0: case 1: case 4: case 9: case 10: case 11: ... };
+ * [0, 1, 4] will be the first bucket, since 3 / (4 - 0) > 1/2. 
+ * 9 will starts a new bucket, since 4 / (9 - 0) < 1/2. But when encountering 11, 6 / (11 - 0) > 1/2
+ * So the merged bucket will be [0, 1, 4, 9, 10, 11]
+ *
+ * The second step generates the selection and jump code to different switch buckets(See TranslateSwitchBuckets)
+ * 
+ * The final step generates the intermediate code for the enclosed statement.
+ */
 static void TranslateSwitchStatement(AstStatement stmt)
 {
 	AstSwitchStatement swtchStmt = AsSwitch(stmt);

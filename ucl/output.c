@@ -31,6 +31,10 @@ void LeftAlign(FILE *file, int pos)
 	}
 }
 
+/**
+ * Open a file for writing. The file's name is 
+ * formed by filename's base name and ext
+ */
 FILE* CreateOutput(char *filename, char *ext)
 {
 	char tmp[256];
@@ -43,6 +47,9 @@ FILE* CreateOutput(char *filename, char *ext)
 	return fopen(tmp, "w");
 }
 
+/**
+ * Format a name
+ */
 char* FormatName(const char *fmt, ...)
 {
 	char buf[256];
@@ -55,6 +62,9 @@ char* FormatName(const char *fmt, ...)
 	return InternName(buf, strlen(buf));
 }
 
+/**
+ * Formated print to output
+ */
 void Print(const char *fmt, ...)
 {
 	char tmp[1024];
