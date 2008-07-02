@@ -298,9 +298,13 @@ find_unused_temp:
 	return;
 }
 
+extern CFGEdge PreOrder;
+
 void Optimize(FunctionSymbol fsym)
 {
 	BBlock bb;
+	int nbbs = 0;
+	CFGEdge e;
 
 	bb = fsym->entryBB;
 	while (bb != NULL)
@@ -322,5 +326,15 @@ void Optimize(FunctionSymbol fsym)
 	{
 		bb = TryMergeBBlock(bb, bb->next);
 	}
+
+	PreOrder = NULL;
+	DFS(fsym->entryBB);
+	e = PreOrder;
+	while (e != NULL)
+	{
+		nbbs++;
+		e = e->next;
+	}
+	Dominator(nbbs);	
 }
 

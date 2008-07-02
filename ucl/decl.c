@@ -3,6 +3,7 @@
 #include "ast.h"
 #include "decl.h"
 
+
 static int FIRST_StructDeclaration[]   = { FIRST_DECLARATION, 0};
 static int FF_StructDeclaration[]      = { FIRST_DECLARATION, TK_RBRACE, 0};
 static int FIRST_Function[]            = { FIRST_DECLARATION, TK_LBRACE, 0};
