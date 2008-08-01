@@ -889,6 +889,7 @@ SINGLE_CHAR_SCANNER(COLON)
 static int ScanBadChar(void)
 {
 	Error(&TokenCoord, "illegal character:\\x%x", *CURSOR);
+	CURSOR++;
 	return GetNextToken();
 }
 
